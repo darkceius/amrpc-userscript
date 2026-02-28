@@ -1,17 +1,23 @@
-# AM Rich Presence via UserScript + Proxy
+# amrpc-userscript
+
+another **Apple Music** rich presence project, but made for the web version of AM.<br>
+this rpc client uses a normal userscript (that can be loaded via tampermonkey) and
+a backend that updates your discord rich presence (since its kindaa difficult to
+achieve that in a browser environment)
 
 ## Requirements
 
-- rust
-- any extension that supports userscripts (preferably tampermonkey)
+- rust (for building the backend)
+- userscript extension (tampermonkey)
 
 ## Installation
 
-- install the [userscript](./userscript.js) file
-- building the server: `cd server-rs && cargo build --release`
-- running the server `./target/release/amrpc-proxy`
+1. register the [userscript](./userscript.js) via your preferred extension
+2. go into the server folder: `cd server`
+3. build the server (ONCE): `cargo build --release`
+4. run the `amrpc-proxy` executable found in `./target/release/`
 
 ## Notice
 
-- the RPC will only work when the proxy server is online (due to localhost websocket browser limitations)
-- add the `amrpc-proxy` executable to your startups
+- rpc only works when backend is alive
+- ^ so add it to your startups
