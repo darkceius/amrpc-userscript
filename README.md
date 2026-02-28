@@ -21,3 +21,9 @@ achieve that in a browser environment)
 
 - rpc only works when backend is alive
 - ^ so add it to your startups
+
+## Presence Preview
+
+![Presence Preview](./assets/preview.png)<br>
+
+the **[ Listen Along ]** button redirects to the song's [song.link](https://song.link/i/1774384684) page
