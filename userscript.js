@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Apple Music RPC
-// @namespace    http://tampermonkey.net/
+// @namespace    https://github.com/darkceius/amrpc-userscript
+// @supportURL   https://github.com/darkceius/amrpc-userscript
 // @version      2026-02-27
 // @description  Apple Music discord RPC
-// @author       Darkceius
+// @author       Darkceius (https://github.com/darkceius)
 // @match        https://music.apple.com/*
 // @match        https://beta.music.apple.com/*
 // @icon         https://www.google.com/s2/favicons?sz=48&domain=music.apple.com
