@@ -18,7 +18,7 @@ the **[ Listen Along ]** button redirects to the song's [song.link](https://song
 
 ## Installation
 
-1. register the [userscript](./userscript.js) via your preferred extension
+1. register the [userscript](./browser/userscript.js) via your preferred extension
 2. go into the server folder: `cd server`
 3. build the server (ONCE): `cargo build --release`
 4. run the `amrpc-proxy` executable found in `./target/release/`
@@ -27,3 +27,4 @@ the **[ Listen Along ]** button redirects to the song's [song.link](https://song
 
 - rpc only works when backend is alive
 - ^ so add it to your startups
+- doesnt work on the web version of discord (app only, with rpc support)

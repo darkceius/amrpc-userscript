@@ -12,6 +12,7 @@
 // @grant        GM_xmlhttpRequest
 // @connect      localhost
 // ==/UserScript==
+/// <reference types="./types" />
 
 (function () {
 	"use strict";
@@ -29,6 +30,7 @@
 	const getMusicKit = () => {
 		if (musicKit) return;
 
+		//@ts-ignore
 		musicKit = unsafeWindow.MusicKit?.getInstance();
 	};
 
@@ -61,7 +63,7 @@
 		};
 	};
 
-	const clearPresence = () => {
+	const clearActivity = () => {
 		lastPresenceState = false;
 
 		GM_xmlhttpRequest({
@@ -71,18 +73,27 @@
 		});
 	};
 
+	const updateActivity = (data) => {
+		GM_xmlhttpRequest({
+			method: "POST",
+			url: `${PROXY_URL}/set`,
+			headers: {
+				"Content-Type": "application/json",
+				...REQUEST_HEADERS,
+			},
+			data: JSON.stringify(data),
+		});
+	};
+
 	window.addEventListener("beforeunload", () => {
-		clearPresence();
+		clearActivity();
 	});
 
 	const updateRPC = () => {
 		const playingMeta = getPlayingMetadata();
 
 		if (!playingMeta) {
-			if (lastPresenceState) {
-				clearPresence();
-			}
-
+			if (lastPresenceState) clearActivity();
 			return;
 		}
 
@@ -116,18 +127,10 @@
 			});
 		}
 
-		GM_xmlhttpRequest({
-			method: "POST",
-			url: `${PROXY_URL}/set`,
-			headers: {
-				"Content-Type": "application/json",
-				...REQUEST_HEADERS,
-			},
-			data: JSON.stringify(data),
-		});
+		updateActivity(data);
 	};
 
 	setInterval(() => {
 		updateRPC();
-	}, 1000 * 5);
+	}, 1000 * 3);
 })();
