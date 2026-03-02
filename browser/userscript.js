@@ -240,7 +240,7 @@
 
 	setInterval(() => {
 		updateRPC();
-	}, 1000 * 3);
+	}, 1000 * 5);
 
 	setInterval(
 		() => {
