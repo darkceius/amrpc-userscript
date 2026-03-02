@@ -11,6 +11,7 @@
 // @grant        unsafeWindow
 // @grant        GM_xmlhttpRequest
 // @connect      localhost
+// @connect      rise.cider.sh
 // ==/UserScript==
 /// <reference types="./types" />
 
@@ -24,8 +25,18 @@
 	const AM_LOGO = `https://www.google.com/s2/favicons?sz=64&domain=music.apple.com`;
 	const REQUEST_HEADERS = { Origin: "amrpc-userscript" };
 
+	const SETTINGS = {
+		USE_CIDER_ARTWORK_SERVICE: true,
+	};
+
 	let lastPresenceState = undefined;
 	let musicKit;
+
+	let playingSongId;
+	let animatedArtworkURL;
+
+	let albumIdCache = {};
+	let artworkCache = {};
 
 	const getMusicKit = () => {
 		if (musicKit) return;
@@ -34,7 +45,94 @@
 		musicKit = unsafeWindow.MusicKit?.getInstance();
 	};
 
-	const getPlayingMetadata = () => {
+	const getAlbumData = async (songId) => {
+		const cacheHit = albumIdCache[songId];
+		if (cacheHit) return cacheHit;
+
+		getMusicKit();
+
+		const response = await musicKit.api.music(
+			`v1/catalog/${musicKit.storefrontId || "us"}/songs/${songId}`,
+			{
+				include: "albums",
+				"fields[albums]": "id,editorialVideo",
+				"fields[songs]": "id",
+			},
+		);
+
+		if (response.errors) return null;
+
+		const albumData = response.data.data[0].relationships.albums.data[0];
+		const albumId = albumData.id;
+
+		let m3u8Stream;
+		/** @type {Object.<string, { previewFrame: Object, video: string }>} */
+		const editorialVideo = albumData.attributes?.editorialVideo;
+
+		if (editorialVideo) {
+			for (const [_, value] of Object.entries(editorialVideo)) {
+				if (value.video) {
+					m3u8Stream = value.video;
+					break;
+				}
+			}
+		}
+
+		albumIdCache[songId] = {
+			albumId: albumId,
+			videoStream: m3u8Stream,
+		};
+
+		return albumIdCache[songId];
+	};
+
+	const getAnimatedArtworkURL = async (albumId, videoStream = null) => {
+		const cacheHit = artworkCache[albumId];
+		if (cacheHit) return cacheHit;
+		if (!videoStream) return null;
+
+		let outputURL;
+
+		// ❤️ to cider.sh devs letting people use it
+		// https://discord.com/channels/843954443845238864/997036669976989777/1478104510328209578
+		if (SETTINGS.USE_CIDER_ARTWORK_SERVICE) {
+			outputURL = await new Promise((resolve) => {
+				GM_xmlhttpRequest({
+					method: "GET",
+					url: `https://rise.cider.sh/api/v1/artwork/generate?url=${encodeURIComponent(videoStream)}`,
+					headers: { Accept: "application/json" },
+					onload: (response) => {
+						try {
+							resolve(JSON.parse(response.responseText)?.url || null);
+						} catch {
+							resolve(null);
+						}
+					},
+					onerror: () => resolve(null),
+				});
+			});
+		}
+
+		artworkCache[albumId] = outputURL;
+		return artworkCache[albumId];
+	};
+
+	const updateAnimatedArtwork = async () => {
+		if (animatedArtworkURL) return;
+
+		const currentId = playingSongId;
+
+		const { albumId, videoStream } = await getAlbumData(currentId);
+		if (playingSongId !== currentId || !videoStream) return;
+
+		const artworkURL = await getAnimatedArtworkURL(albumId, videoStream);
+		if (playingSongId !== currentId || !artworkURL) return;
+
+		animatedArtworkURL = artworkURL;
+		updateRPC(false);
+	};
+
+	const getPlayingMetadata = (intervalChecked = false) => {
 		getMusicKit();
 
 		if (!musicKit || musicKit.playbackState !== 2) return null;
@@ -48,18 +146,27 @@
 		const attributes = playingItem.attributes;
 		const playParams = attributes.playParams;
 
-		return {
-			position: isFinite(songPosition) && songPosition,
-			length: isFinite(songLength) && songLength,
+		const songId = playParams?.id;
+		const catalogId = playParams?.catalogId || (parseFloat(songId) && songId);
 
-			id:
-				playParams?.catalogId || (parseFloat(playParams?.id) && playParams?.id),
+		if (intervalChecked && catalogId !== playingSongId) {
+			playingSongId = catalogId;
+			animatedArtworkURL = null;
+		}
+
+		return {
+			position: songPosition,
+			length: songLength,
+
+			id: catalogId,
 			name: attributes.name,
 			artist: attributes.artistName,
 			album: attributes.albumName,
-			artwork: attributes.artwork?.url
-				.replace("{w}", ARTWORK_SIZE)
-				.replace("{h}", ARTWORK_SIZE),
+			artwork:
+				animatedArtworkURL ||
+				attributes.artwork?.url
+					.replace("{w}", ARTWORK_SIZE)
+					.replace("{h}", ARTWORK_SIZE),
 		};
 	};
 
@@ -89,8 +196,8 @@
 		clearActivity();
 	});
 
-	const updateRPC = () => {
-		const playingMeta = getPlayingMetadata();
+	const updateRPC = (intervalChecked = true) => {
+		const playingMeta = getPlayingMetadata(intervalChecked);
 
 		if (!playingMeta) {
 			if (lastPresenceState) clearActivity();
@@ -128,9 +235,18 @@
 		}
 
 		updateActivity(data);
+		if (intervalChecked) updateAnimatedArtwork();
 	};
 
 	setInterval(() => {
 		updateRPC();
 	}, 1000 * 3);
+
+	setInterval(
+		() => {
+			albumIdCache = {};
+			artworkCache = {};
+		},
+		1000 * 60 * 15,
+	);
 })();
