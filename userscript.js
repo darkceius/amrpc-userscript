@@ -21,6 +21,7 @@
 	const ARTWORK_SIZE = 128;
 	const PROXY_URL = "http://localhost:7635";
 	const AM_LOGO = `https://www.google.com/s2/favicons?sz=64&domain=music.apple.com`;
+	const REQUEST_HEADERS = { Origin: "amrpc-userscript" };
 
 	let lastPresenceState = undefined;
 	let musicKit;
@@ -65,6 +66,7 @@
 
 		GM_xmlhttpRequest({
 			method: "POST",
+			headers: REQUEST_HEADERS,
 			url: `${PROXY_URL}/clear`,
 		});
 	};
@@ -119,6 +121,7 @@
 			url: `${PROXY_URL}/set`,
 			headers: {
 				"Content-Type": "application/json",
+				...REQUEST_HEADERS,
 			},
 			data: JSON.stringify(data),
 		});

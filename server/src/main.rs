@@ -1,6 +1,9 @@
-use axum::{Json, Router, extract::State, routing::post};
+use axum::body;
+use axum::http::{StatusCode, header, request};
+use axum::{Json, Router, extract::ConnectInfo, extract::State, middleware, routing::post};
 use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity};
 use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time::sleep;
@@ -44,10 +47,28 @@ struct ResponseBody {
     success: bool,
 }
 
+async fn validate_request(
+    ConnectInfo(address): ConnectInfo<SocketAddr>,
+    request: request::Request<body::Body>,
+    next: middleware::Next,
+) -> Result<axum::response::Response, StatusCode> {
+    let origin = request
+        .headers()
+        .get(header::ORIGIN)
+        .and_then(|v| v.to_str().ok());
+
+    if !address.ip().is_loopback() || !matches!(origin, Some("amrpc-userscript")) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let response = next.run(request).await;
+    Ok(response)
+}
+
 #[tokio::main]
 async fn main() {
     let mut client = DiscordIpcClient::new(APP_ID);
-    client.connect().expect("Failed to connect to Discord");
+    client.connect().expect("failed to boot RPC");
 
     let shared_state = Arc::new(Mutex::new(AppState {
         client,
@@ -77,10 +98,16 @@ async fn main() {
     let app = Router::new()
         .route("/set", post(set_activity))
         .route("/clear", post(clear_activity))
+        .layer(middleware::from_fn(validate_request))
         .with_state(shared_state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:7635").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
 
 async fn set_activity(
